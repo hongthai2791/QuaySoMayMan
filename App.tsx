@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Confetti from 'react-confetti';
-import { Settings, Play, Square, RotateCcw, Trash2, History, Trophy } from 'lucide-react';
+import { Settings, Play, Square, Trash2, History, Trophy, Music, VolumeX } from 'lucide-react';
 import { AppSettings, DrawHistoryItem } from './types';
 import { SettingsModal } from './components/SettingsModal';
 import { NumberDisplay } from './components/NumberDisplay';
@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   max: 100,
   priorityList: [],
   backgroundImage: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+  backgroundMusicUrl: "",
   volume: 0.5
 };
 
@@ -24,6 +25,7 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   
   // Refs for animation loop
   const spinIntervalRef = useRef<number | null>(null);
@@ -37,6 +39,22 @@ const App: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Sync music settings
+  useEffect(() => {
+    if (settings.backgroundMusicUrl) {
+      soundManager.setMusic(settings.backgroundMusicUrl);
+      soundManager.setMusicVolume(settings.volume);
+      
+      if (isMusicPlaying) {
+        soundManager.playMusic(settings.volume);
+      } else {
+        soundManager.pauseMusic();
+      }
+    } else {
+      soundManager.pauseMusic();
+    }
+  }, [settings.backgroundMusicUrl, settings.volume, isMusicPlaying]);
 
   // Generate a random number excluding history
   const getRandomNumber = useCallback((min: number, max: number, exclude: number[]) => {
@@ -126,6 +144,15 @@ const App: React.FC = () => {
     }
   };
 
+  const toggleMusic = () => {
+    if (!settings.backgroundMusicUrl) {
+      alert("Vui lòng cài đặt link nhạc nền trong phần Cài đặt trước!");
+      setIsSettingsOpen(true);
+      return;
+    }
+    setIsMusicPlaying(!isMusicPlaying);
+  };
+
   return (
     <div 
       className="min-h-screen w-full text-white transition-all duration-500 bg-cover bg-center bg-no-repeat flex flex-col overflow-hidden"
@@ -133,25 +160,39 @@ const App: React.FC = () => {
     >
       {showConfetti && <Confetti width={windowSize.current.width} height={windowSize.current.height} numberOfPieces={200} recycle={false} />}
 
+      {/* Top Company Banner */}
+      <div className="w-full bg-black/40 backdrop-blur-md py-3 text-center border-b border-white/10 z-30 shadow-lg">
+        <h2 className="text-white font-black tracking-wider text-lg md:text-2xl uppercase text-shadow-glow">
+          CÔNG TY TNHH TM & XD QUYẾT NHÀI
+        </h2>
+      </div>
+
       {/* Header */}
       <header className="p-6 flex justify-between items-center z-20">
         <div className="flex items-center gap-2 md:gap-4 glass-panel px-4 py-2 rounded-full">
            <Trophy className="text-yellow-400 w-6 h-6 md:w-8 md:h-8" />
-           <h1 className="text-lg md:text-2xl font-bold tracking-wide">LUCKY DRAW</h1>
+           <h1 className="text-lg md:text-2xl font-bold tracking-wide">VÒNG QUAY MAY MẮN</h1>
         </div>
         
         <div className="flex gap-3">
           <button 
+            onClick={toggleMusic} 
+            className={`p-3 rounded-full glass-panel hover:bg-white/20 transition-all active:scale-95 ${isMusicPlaying ? 'text-green-400' : 'text-white/70'}`}
+            title="Bật/Tắt Nhạc"
+          >
+            {isMusicPlaying ? <Music className="w-6 h-6 animate-pulse" /> : <VolumeX className="w-6 h-6" />}
+          </button>
+          <button 
             onClick={() => setIsHistoryOpen(!isHistoryOpen)} 
             className="p-3 rounded-full glass-panel hover:bg-white/20 transition-all active:scale-95"
-            title="History"
+            title="Lịch sử"
           >
             <History className="w-6 h-6" />
           </button>
           <button 
             onClick={() => setIsSettingsOpen(true)} 
             className="p-3 rounded-full glass-panel hover:bg-white/20 transition-all active:scale-95"
-            title="Settings"
+            title="Cài đặt"
           >
             <Settings className="w-6 h-6" />
           </button>

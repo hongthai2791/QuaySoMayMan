@@ -1,13 +1,19 @@
-// Simple synthesizer for sound effects
+// Simple synthesizer for sound effects and music manager
 class SoundManager {
   private ctx: AudioContext | null = null;
   private gainNode: GainNode | null = null;
+  private bgMusic: HTMLAudioElement | null = null;
+  private currentMusicUrl: string = '';
 
   constructor() {
     try {
       this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       this.gainNode = this.ctx.createGain();
       this.gainNode.connect(this.ctx.destination);
+      
+      // Initialize background music element
+      this.bgMusic = new Audio();
+      this.bgMusic.loop = true;
     } catch (e) {
       console.error("Web Audio API not supported", e);
     }
@@ -18,6 +24,8 @@ class SoundManager {
       this.ctx.resume();
     }
   }
+
+  // --- Sound Effects (Web Audio API) ---
 
   public playTick(volume: number) {
     if (!this.ctx || !this.gainNode || volume <= 0) return;
@@ -69,6 +77,42 @@ class SoundManager {
       osc.start(startTime);
       osc.stop(startTime + 1);
     });
+  }
+
+  // --- Background Music (HTML5 Audio) ---
+
+  public setMusic(url: string) {
+    if (this.currentMusicUrl !== url) {
+      this.currentMusicUrl = url;
+      if (this.bgMusic) {
+        this.bgMusic.src = url;
+      }
+    }
+  }
+
+  public playMusic(volume: number) {
+    if (this.bgMusic && this.currentMusicUrl) {
+      this.bgMusic.volume = volume;
+      // Promise handling to avoid "play() failed because the user didn't interact" errors
+      const playPromise = this.bgMusic.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.log("Auto-play prevented (user must interact first):", error);
+        });
+      }
+    }
+  }
+
+  public pauseMusic() {
+    if (this.bgMusic) {
+      this.bgMusic.pause();
+    }
+  }
+
+  public setMusicVolume(volume: number) {
+    if (this.bgMusic) {
+      this.bgMusic.volume = volume;
+    }
   }
 }
 

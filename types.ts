@@ -3,6 +3,7 @@ export interface AppSettings {
   max: number;
   priorityList: number[];
   backgroundImage: string;
+  backgroundMusicUrl: string;
   volume: number;
 }
 

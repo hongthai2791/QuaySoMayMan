@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Image as ImageIcon, Volume2, List, Hash } from 'lucide-react';
+import { X, Save, Image as ImageIcon, Volume2, List, Hash, Music } from 'lucide-react';
 import { AppSettings } from '../types';
 
 interface SettingsModalProps {
@@ -16,6 +16,12 @@ const PRESET_BACKGROUNDS = [
   "linear-gradient(120deg, #f6d365 0%, #fda085 100%)", // Orange/Yellow
   "url('https://images.unsplash.com/photo-1513151233558-d860c5398176?q=80&w=2070&auto=format&fit=crop')", // Party
   "url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2029&auto=format&fit=crop')", // Gradient Abstract
+];
+
+const PRESET_MUSIC = [
+  { name: "Vui vẻ (Fun)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+  { name: "Sôi động (Energetic)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3" },
+  { name: "Nhẹ nhàng (Calm)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" }
 ];
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSave }) => {
@@ -100,23 +106,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
             <p className="text-xs text-gray-500">Nhập các số cách nhau bởi dấu phẩy. Các số này sẽ được chọn trước khi quay ngẫu nhiên.</p>
           </div>
 
-          {/* Audio */}
-          <div className="space-y-3">
-            <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
-              <Volume2 className="w-4 h-4" />
-              Âm Thanh (Volume)
-            </label>
-            <div className="flex items-center gap-4">
-               <input 
-                 type="range" 
-                 min="0" 
-                 max="1" 
-                 step="0.05"
-                 value={localSettings.volume}
-                 onChange={(e) => setLocalSettings({...localSettings, volume: parseFloat(e.target.value)})}
-                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-               />
-               <span className="text-sm font-mono w-12 text-right">{Math.round(localSettings.volume * 100)}%</span>
+          {/* Audio & Music */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                <Volume2 className="w-4 h-4" />
+                Âm Lượng (Volume)
+              </label>
+              <div className="flex items-center gap-4">
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="1" 
+                  step="0.05"
+                  value={localSettings.volume}
+                  onChange={(e) => setLocalSettings({...localSettings, volume: parseFloat(e.target.value)})}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <span className="text-sm font-mono w-12 text-right">{Math.round(localSettings.volume * 100)}%</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+               <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                <Music className="w-4 h-4" />
+                Nhạc Nền (Background Music)
+              </label>
+              
+              <div className="flex flex-wrap gap-2 mb-2">
+                {PRESET_MUSIC.map((track, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setLocalSettings({ ...localSettings, backgroundMusicUrl: track.url })}
+                    className={`text-xs px-3 py-1 rounded-full border ${localSettings.backgroundMusicUrl === track.url ? 'bg-blue-100 border-blue-500 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    {track.name}
+                  </button>
+                ))}
+              </div>
+
+              <input 
+                  type="text" 
+                  placeholder="Link nhạc MP3 (https://...)" 
+                  value={localSettings.backgroundMusicUrl} 
+                  onChange={(e) => setLocalSettings({...localSettings, backgroundMusicUrl: e.target.value})}
+                  className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+               <p className="text-xs text-gray-500">Dán link file mp3 trực tiếp hoặc chọn nhạc mẫu.</p>
             </div>
           </div>
 
