@@ -1,0 +1,5 @@
+{
+  "name": "Lucky Draw Pro",
+  "description": "A professional lucky draw application with customizable number ranges, priority queues, sound control, and theming.",
+  "requestFramePermissions": []
+}
