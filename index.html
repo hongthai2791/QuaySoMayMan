@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html lang="vi">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="https://lucide.dev/logo.light.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vòng quay may mắn</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Babel for JSX compilation in browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
     <style>
-      body {
-        font-family: 'Inter', sans-serif;
-        overflow: hidden; /* Prevent scroll on mobile during animation */
-      }
+      body { font-family: 'Inter', sans-serif; overflow: hidden; }
       .glass-panel {
         background: rgba(255, 255, 255, 0.15);
         backdrop-filter: blur(12px);
@@ -19,18 +20,20 @@
         border: 1px solid rgba(255, 255, 255, 0.2);
         box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
       }
-      .text-shadow-glow {
-        text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-      }
+      .text-shadow-glow { text-shadow: 0 0 20px rgba(255, 255, 255, 0.5); }
+      /* Custom scrollbar for settings */
+      ::-webkit-scrollbar { width: 8px; }
+      ::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); }
+      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
     </style>
-  <script type="importmap">
+
+    <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.3.1",
-    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
-    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-    "react-dom": "https://esm.sh/react-dom@18.3.1",
-    "lucide-react": "https://esm.sh/lucide-react@0.344.0",
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.292.0",
     "react-confetti": "https://esm.sh/react-confetti@6.1.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "react/": "https://esm.sh/react@^19.2.4/"
@@ -38,7 +41,541 @@
 }
 </script>
 </head>
-  <body>
+<body>
     <div id="root"></div>
-  </body>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef, useCallback } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import Confetti from 'react-confetti';
+        import { 
+            Settings, Play, Square, RotateCcw, Trash2, History, Trophy, 
+            X, Save, Image as ImageIcon, Volume2, List, Hash, Music, VolumeX 
+        } from 'lucide-react';
+
+        // --- UTILS: AUDIO ---
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+                this.gainNode = null;
+                this.bgMusic = null;
+                this.currentMusicUrl = '';
+                
+                try {
+                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContextClass) {
+                        this.ctx = new AudioContextClass();
+                        this.gainNode = this.ctx.createGain();
+                        this.gainNode.connect(this.ctx.destination);
+                        
+                        this.bgMusic = new Audio();
+                        this.bgMusic.loop = true;
+                    }
+                } catch (e) {
+                    console.error("Web Audio API not supported", e);
+                }
+            }
+
+            ensureContext() {
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playTick(volume) {
+                if (!this.ctx || !this.gainNode || volume <= 0) return;
+                this.ensureContext();
+                
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.connect(gain);
+                gain.connect(this.gainNode);
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.05);
+                
+                gain.gain.setValueAtTime(volume * 0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.05);
+                
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.06);
+            }
+
+            playWin(volume) {
+                if (!this.ctx || !this.gainNode || volume <= 0) return;
+                this.ensureContext();
+
+                const now = this.ctx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C Major
+                
+                notes.forEach((freq, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    
+                    osc.connect(gain);
+                    gain.connect(this.gainNode);
+                    
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    
+                    const startTime = now + (i * 0.1);
+                    
+                    gain.gain.setValueAtTime(0, startTime);
+                    gain.gain.linearRampToValueAtTime(volume * 0.4, startTime + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.8);
+                    
+                    osc.start(startTime);
+                    osc.stop(startTime + 1);
+                });
+            }
+
+            setMusic(url) {
+                if (this.currentMusicUrl !== url) {
+                    this.currentMusicUrl = url;
+                    if (this.bgMusic) {
+                        this.bgMusic.src = url;
+                    }
+                }
+            }
+
+            playMusic(volume) {
+                if (this.bgMusic && this.currentMusicUrl) {
+                    this.bgMusic.volume = volume;
+                    const playPromise = this.bgMusic.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(error => {
+                            console.log("Auto-play prevented:", error);
+                        });
+                    }
+                }
+            }
+
+            pauseMusic() {
+                if (this.bgMusic) {
+                    this.bgMusic.pause();
+                }
+            }
+
+            setMusicVolume(volume) {
+                if (this.bgMusic) {
+                    this.bgMusic.volume = volume;
+                }
+            }
+        }
+        const soundManager = new SoundManager();
+
+        // --- COMPONENT: NumberDisplay ---
+        const NumberDisplay = ({ currentNumber, isSpinning }) => {
+            return (
+                <div className="relative flex justify-center items-center py-12 md:py-20">
+                   <div className={`absolute w-64 h-64 md:w-96 md:h-96 border-4 border-white/20 rounded-full ${isSpinning ? 'animate-ping' : ''}`} />
+                   <div className="absolute w-56 h-56 md:w-80 md:h-80 border-2 border-white/10 rounded-full" />
+                   
+                   <div className="glass-panel relative z-10 w-full max-w-sm md:max-w-2xl mx-auto rounded-3xl p-8 md:p-16 flex justify-center items-center min-h-[200px] md:min-h-[300px] transition-all duration-300 transform">
+                      <h1 className={`font-black text-8xl md:text-[12rem] text-white tracking-tighter tabular-nums leading-none filter drop-shadow-2xl transition-all duration-100 ${isSpinning ? 'blur-sm scale-110 opacity-90' : 'scale-100 opacity-100 text-shadow-glow'}`}>
+                        {currentNumber !== null ? currentNumber : '---'}
+                      </h1>
+                   </div>
+                </div>
+            );
+        };
+
+        // --- COMPONENT: SettingsModal ---
+        const PRESET_BACKGROUNDS = [
+            "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            "linear-gradient(to right, #43e97b 0%, #38f9d7 100%)",
+            "linear-gradient(to top, #ff9a9e 0%, #fecfef 99%, #fecfef 100%)",
+            "linear-gradient(120deg, #f6d365 0%, #fda085 100%)",
+            "url('https://images.unsplash.com/photo-1513151233558-d860c5398176?q=80&w=2070&auto=format&fit=crop')",
+            "url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2029&auto=format&fit=crop')",
+        ];
+
+        const PRESET_MUSIC = [
+            { name: "Vui vẻ (Fun)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+            { name: "Sôi động (Energetic)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3" },
+            { name: "Nhẹ nhàng (Calm)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" }
+        ];
+
+        const SettingsModal = ({ isOpen, onClose, settings, onSave }) => {
+            const [localSettings, setLocalSettings] = useState(settings);
+            const [priorityInput, setPriorityInput] = useState(settings.priorityList.join(', '));
+
+            useEffect(() => {
+                if (isOpen) {
+                    setLocalSettings(settings);
+                    setPriorityInput(settings.priorityList.join(', '));
+                }
+            }, [isOpen, settings]);
+
+            const handleSave = () => {
+                const parsedPriority = priorityInput
+                    .split(',')
+                    .map(s => parseInt(s.trim()))
+                    .filter(n => !isNaN(n));
+
+                onSave({
+                    ...localSettings,
+                    priorityList: parsedPriority
+                });
+                onClose();
+            };
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                <Hash className="w-5 h-5" /> Cài Đặt (Settings)
+                            </h2>
+                            <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                                <X className="w-5 h-5 text-gray-600" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto space-y-6">
+                            <div className="space-y-3">
+                                <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Khoảng Số</label>
+                                <div className="flex gap-4">
+                                    <div className="flex-1">
+                                        <label className="block text-xs text-gray-500 mb-1">Từ</label>
+                                        <input
+                                            type="number"
+                                            value={localSettings.min}
+                                            onChange={(e) => setLocalSettings({ ...localSettings, min: parseInt(e.target.value) || 0 })}
+                                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="block text-xs text-gray-500 mb-1">Đến</label>
+                                        <input
+                                            type="number"
+                                            value={localSettings.max}
+                                            onChange={(e) => setLocalSettings({ ...localSettings, max: parseInt(e.target.value) || 0 })}
+                                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                                    <List className="w-4 h-4" /> Danh sách ưu tiên
+                                </label>
+                                <textarea
+                                    value={priorityInput}
+                                    onChange={(e) => setPriorityInput(e.target.value)}
+                                    placeholder="VD: 10, 25, 99"
+                                    className="w-full p-3 border border-gray-300 rounded-lg h-24 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                />
+                                <p className="text-xs text-gray-500">Các số này sẽ được chọn trước.</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                                        <Volume2 className="w-4 h-4" /> Âm Lượng
+                                    </label>
+                                    <div className="flex items-center gap-4">
+                                        <input 
+                                            type="range" min="0" max="1" step="0.05"
+                                            value={localSettings.volume}
+                                            onChange={(e) => setLocalSettings({...localSettings, volume: parseFloat(e.target.value)})}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <span className="text-sm font-mono w-12 text-right">{Math.round(localSettings.volume * 100)}%</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                                        <Music className="w-4 h-4" /> Nhạc Nền
+                                    </label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {PRESET_MUSIC.map((track, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setLocalSettings({ ...localSettings, backgroundMusicUrl: track.url })}
+                                                className={`text-xs px-3 py-1 rounded-full border ${localSettings.backgroundMusicUrl === track.url ? 'bg-blue-100 border-blue-500 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                                            >
+                                                {track.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Link nhạc MP3 (https://...)" 
+                                        value={localSettings.backgroundMusicUrl} 
+                                        onChange={(e) => setLocalSettings({...localSettings, backgroundMusicUrl: e.target.value})}
+                                        className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                                    <ImageIcon className="w-4 h-4" /> Hình Nền
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {PRESET_BACKGROUNDS.map((bg, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => setLocalSettings({ ...localSettings, backgroundImage: bg })}
+                                            className={`h-12 rounded-lg border-2 overflow-hidden relative ${localSettings.backgroundImage === bg ? 'border-blue-600 ring-2 ring-blue-200' : 'border-transparent'}`}
+                                            style={{ background: bg.startsWith('url') ? bg : bg, backgroundSize: 'cover' }}
+                                        />
+                                    ))}
+                                </div>
+                                <input 
+                                    type="text" placeholder="Custom Image URL..." 
+                                    value={localSettings.backgroundImage.startsWith('url') ? localSettings.backgroundImage.slice(5, -2) : ''} 
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setLocalSettings({...localSettings, backgroundImage: val ? `url('${val}')` : PRESET_BACKGROUNDS[0]})
+                                    }}
+                                    className="w-full p-2 text-sm border border-gray-300 rounded-lg mt-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t bg-gray-50 flex justify-end gap-3">
+                            <button onClick={onClose} className="px-5 py-2 text-gray-600 font-medium hover:bg-gray-200 rounded-lg transition-colors">Hủy</button>
+                            <button onClick={handleSave} className="px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-lg shadow-blue-500/30">
+                                <Save className="w-4 h-4" /> Lưu Cài Đặt
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- APP COMPONENT ---
+        const DEFAULT_SETTINGS = {
+            min: 1,
+            max: 100,
+            priorityList: [],
+            backgroundImage: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            backgroundMusicUrl: "",
+            volume: 0.5
+        };
+
+        const App = () => {
+            const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+            const [currentNumber, setCurrentNumber] = useState(null);
+            const [isSpinning, setIsSpinning] = useState(false);
+            const [history, setHistory] = useState([]);
+            const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+            const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+            const [showConfetti, setShowConfetti] = useState(false);
+            const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+            
+            const spinIntervalRef = useRef(null);
+            const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+            useEffect(() => {
+                const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
+
+            useEffect(() => {
+                if (settings.backgroundMusicUrl) {
+                    soundManager.setMusic(settings.backgroundMusicUrl);
+                    soundManager.setMusicVolume(settings.volume);
+                    
+                    if (isMusicPlaying) {
+                        soundManager.playMusic(settings.volume);
+                    } else {
+                        soundManager.pauseMusic();
+                    }
+                } else {
+                    soundManager.pauseMusic();
+                }
+            }, [settings.backgroundMusicUrl, settings.volume, isMusicPlaying]);
+
+            const getRandomNumber = useCallback((min, max, exclude) => {
+                const pool = [];
+                for (let i = min; i <= max; i++) {
+                    if (!exclude.includes(i)) pool.push(i);
+                }
+                if (pool.length === 0) return null;
+                return pool[Math.floor(Math.random() * pool.length)];
+            }, []);
+
+            const startSpin = () => {
+                const totalDrawn = history.map(h => h.number);
+                const poolSize = (settings.max - settings.min + 1) - totalDrawn.length;
+                const availablePriority = settings.priorityList.filter(n => !totalDrawn.includes(n));
+                const isPriorityAvailable = availablePriority.length > 0;
+
+                if (poolSize <= 0 && !isPriorityAvailable) {
+                    alert("Đã quay hết số trong khoảng này!");
+                    return;
+                }
+
+                setIsSpinning(true);
+                setShowConfetti(false);
+                
+                const speed = 50;
+                spinIntervalRef.current = window.setInterval(() => {
+                    const visualNum = Math.floor(Math.random() * (settings.max - settings.min + 1)) + settings.min;
+                    setCurrentNumber(visualNum);
+                    soundManager.playTick(settings.volume);
+                }, speed);
+            };
+
+            const stopSpin = () => {
+                if (!spinIntervalRef.current) return;
+
+                clearInterval(spinIntervalRef.current);
+                spinIntervalRef.current = null;
+                setIsSpinning(false);
+
+                const totalDrawn = history.map(h => h.number);
+                let winner = null;
+                const availablePriority = settings.priorityList.filter(n => !totalDrawn.includes(n));
+                
+                if (availablePriority.length > 0) {
+                    winner = availablePriority[0];
+                } else {
+                    winner = getRandomNumber(settings.min, settings.max, totalDrawn);
+                }
+
+                if (winner !== null) {
+                    setCurrentNumber(winner);
+                    setHistory(prev => [{ number: winner, timestamp: Date.now() }, ...prev]);
+                    setShowConfetti(true);
+                    soundManager.playWin(settings.volume);
+                    setTimeout(() => setShowConfetti(false), 5000);
+                } else {
+                    alert("No numbers left!");
+                }
+            };
+
+            const toggleSpin = () => {
+                if (isSpinning) {
+                    stopSpin();
+                } else {
+                    startSpin();
+                }
+            };
+
+            const clearHistory = () => {
+                if (confirm("Bạn có chắc muốn xóa lịch sử quay số?")) {
+                    setHistory([]);
+                    setCurrentNumber(null);
+                }
+            };
+
+            const toggleMusic = () => {
+                if (!settings.backgroundMusicUrl) {
+                    alert("Vui lòng cài đặt link nhạc nền trong phần Cài đặt trước!");
+                    setIsSettingsOpen(true);
+                    return;
+                }
+                setIsMusicPlaying(!isMusicPlaying);
+            };
+
+            return (
+                <div 
+                    className="min-h-screen w-full text-white transition-all duration-500 bg-cover bg-center bg-no-repeat flex flex-col overflow-hidden"
+                    style={{ background: settings.backgroundImage.startsWith('url') ? settings.backgroundImage : settings.backgroundImage, backgroundSize: 'cover' }}
+                >
+                    {showConfetti && <Confetti width={windowSize.width} height={windowSize.height} numberOfPieces={200} recycle={false} />}
+
+                    <div className="w-full bg-black/40 backdrop-blur-md py-3 text-center border-b border-white/10 z-30 shadow-lg">
+                        <h2 className="text-white font-black tracking-wider text-lg md:text-2xl uppercase text-shadow-glow">
+                            CÔNG TY TNHH TM & XD QUYẾT NHÀI
+                        </h2>
+                    </div>
+
+                    <header className="p-6 flex justify-between items-center z-20">
+                        <div className="flex items-center gap-2 md:gap-4 glass-panel px-4 py-2 rounded-full">
+                           <Trophy className="text-yellow-400 w-6 h-6 md:w-8 md:h-8" />
+                           <h1 className="text-lg md:text-2xl font-bold tracking-wide">VÒNG QUAY MAY MẮN</h1>
+                        </div>
+                        
+                        <div className="flex gap-3">
+                            <button onClick={toggleMusic} className={`p-3 rounded-full glass-panel hover:bg-white/20 transition-all active:scale-95 ${isMusicPlaying ? 'text-green-400' : 'text-white/70'}`} title="Bật/Tắt Nhạc">
+                                {isMusicPlaying ? <Music className="w-6 h-6 animate-pulse" /> : <VolumeX className="w-6 h-6" />}
+                            </button>
+                            <button onClick={() => setIsHistoryOpen(!isHistoryOpen)} className="p-3 rounded-full glass-panel hover:bg-white/20 transition-all active:scale-95" title="Lịch sử">
+                                <History className="w-6 h-6" />
+                            </button>
+                            <button onClick={() => setIsSettingsOpen(true)} className="p-3 rounded-full glass-panel hover:bg-white/20 transition-all active:scale-95" title="Cài đặt">
+                                <Settings className="w-6 h-6" />
+                            </button>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 flex flex-col items-center justify-center p-4 z-10 w-full max-w-7xl mx-auto">
+                        <div className="w-full mb-12">
+                            <NumberDisplay currentNumber={currentNumber} isSpinning={isSpinning} />
+                        </div>
+
+                        <div className="flex gap-6 items-center">
+                            <button
+                              onClick={toggleSpin}
+                              className={`group relative flex items-center justify-center gap-3 px-12 py-5 rounded-full text-2xl font-bold shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${isSpinning 
+                                ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-500/50' 
+                                : 'bg-white hover:bg-gray-50 text-blue-900 shadow-blue-500/30'}`}
+                            >
+                               {isSpinning ? <Square className="fill-current w-6 h-6" /> : <Play className="fill-current w-6 h-6" />}
+                               {isSpinning ? "DỪNG LẠI (STOP)" : "QUAY SỐ (START)"}
+                            </button>
+                        </div>
+                        
+                        <div className="mt-8 text-center opacity-80 font-medium glass-panel px-6 py-2 rounded-full text-sm md:text-base">
+                           Khoảng số: {settings.min} - {settings.max} | Đã quay: {history.length}
+                        </div>
+                    </main>
+
+                    {isHistoryOpen && (
+                        <div className="absolute top-0 right-0 h-full w-80 max-w-full glass-panel border-l border-white/20 z-30 transition-transform duration-300 flex flex-col shadow-2xl backdrop-blur-xl bg-black/20">
+                            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <History className="w-5 h-5" /> Lịch Sử
+                                </h2>
+                                <button onClick={() => setIsHistoryOpen(false)} className="hover:bg-white/10 p-1 rounded-full"><Settings className="w-5 h-5 rotate-45" /></button>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                                {history.length === 0 ? (
+                                    <p className="text-center text-white/50 mt-10 italic">Chưa có số nào được quay</p>
+                                ) : (
+                                    history.map((item, idx) => (
+                                        <div key={item.timestamp} className="flex items-center justify-between p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-colors border border-white/5">
+                                            <span className="font-mono text-white/50 text-sm">#{history.length - idx}</span>
+                                            <span className="text-2xl font-bold text-yellow-300">{item.number}</span>
+                                            <span className="text-xs text-white/60">{new Date(item.timestamp).toLocaleTimeString()}</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                            
+                            <div className="p-4 border-t border-white/10 bg-white/5">
+                                <button onClick={clearHistory} className="w-full py-3 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-500/30 transition-colors flex items-center justify-center gap-2 font-medium">
+                                    <Trash2 className="w-4 h-4" /> Xóa Lịch Sử
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <SettingsModal 
+                        isOpen={isSettingsOpen} 
+                        onClose={() => setIsSettingsOpen(false)}
+                        settings={settings}
+                        onSave={(newSettings) => setSettings(newSettings)}
+                    />
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
 </html>
