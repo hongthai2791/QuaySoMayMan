@@ -224,7 +224,7 @@
 
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="bg-white text-gray-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                                 <Hash className="w-5 h-5" /> Cài Đặt (Settings)
@@ -244,7 +244,7 @@
                                             type="number"
                                             value={localSettings.min}
                                             onChange={(e) => setLocalSettings({ ...localSettings, min: parseInt(e.target.value) || 0 })}
-                                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
                                         />
                                     </div>
                                     <div className="flex-1">
@@ -253,7 +253,7 @@
                                             type="number"
                                             value={localSettings.max}
                                             onChange={(e) => setLocalSettings({ ...localSettings, max: parseInt(e.target.value) || 0 })}
-                                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
                                         />
                                     </div>
                                 </div>
@@ -261,15 +261,15 @@
 
                             <div className="space-y-3">
                                 <label className="text-sm font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-2">
-                                    <List className="w-4 h-4" /> Danh sách ưu tiên
+                                    <List className="w-4 h-4" /> Ghi chú (Notes)
                                 </label>
                                 <textarea
                                     value={priorityInput}
                                     onChange={(e) => setPriorityInput(e.target.value)}
-                                    placeholder="VD: 10, 25, 99"
-                                    className="w-full p-3 border border-gray-300 rounded-lg h-24 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                    placeholder="..."
+                                    className="w-full p-3 border border-gray-300 rounded-lg h-24 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none text-gray-900"
                                 />
-                                <p className="text-xs text-gray-500">Các số này sẽ được chọn trước.</p>
+                                
                             </div>
 
                             <div className="space-y-4">
@@ -284,7 +284,7 @@
                                             onChange={(e) => setLocalSettings({...localSettings, volume: parseFloat(e.target.value)})}
                                             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                                         />
-                                        <span className="text-sm font-mono w-12 text-right">{Math.round(localSettings.volume * 100)}%</span>
+                                        <span className="text-sm font-mono w-12 text-right text-gray-700">{Math.round(localSettings.volume * 100)}%</span>
                                     </div>
                                 </div>
 
@@ -308,7 +308,7 @@
                                         placeholder="Link nhạc MP3 (https://...)" 
                                         value={localSettings.backgroundMusicUrl} 
                                         onChange={(e) => setLocalSettings({...localSettings, backgroundMusicUrl: e.target.value})}
-                                        className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
                                     />
                                 </div>
                             </div>
@@ -334,7 +334,7 @@
                                         const val = e.target.value;
                                         setLocalSettings({...localSettings, backgroundImage: val ? `url('${val}')` : PRESET_BACKGROUNDS[0]})
                                     }}
-                                    className="w-full p-2 text-sm border border-gray-300 rounded-lg mt-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full p-2 text-sm border border-gray-300 rounded-lg mt-2 focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
                                 />
                             </div>
                         </div>
@@ -476,6 +476,29 @@
                 }
                 setIsMusicPlaying(!isMusicPlaying);
             };
+
+            // --- Keyboard Control ---
+            const toggleSpinRef = useRef(toggleSpin);
+            useEffect(() => {
+                toggleSpinRef.current = toggleSpin;
+            });
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Enter') {
+                        // Prevent spin if user is typing in inputs
+                        const activeTag = document.activeElement?.tagName.toLowerCase();
+                        if (activeTag === 'input' || activeTag === 'textarea') return;
+                        
+                        // Prevent spin if settings modal is open
+                        if (isSettingsOpen) return;
+
+                        toggleSpinRef.current();
+                    }
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [isSettingsOpen]);
 
             return (
                 <div 
